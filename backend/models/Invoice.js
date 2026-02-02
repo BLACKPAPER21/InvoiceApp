@@ -47,6 +47,15 @@ const invoiceSchema = new mongoose.Schema(
     },
     items: [
       {
+        productId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Product',
+          default: null,
+        },
+        sku: {
+          type: String,
+          default: '',
+        },
         desc: {
           type: String,
           required: true,
@@ -60,6 +69,10 @@ const invoiceSchema = new mongoose.Schema(
           type: Number,
           required: true,
           min: 0,
+        },
+        stockDeducted: {
+          type: Boolean,
+          default: false,
         },
       },
     ],

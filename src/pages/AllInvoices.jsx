@@ -8,12 +8,14 @@ import {
   X,
   AlertCircle,
   FileText,
+  CheckCircle,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { useRef } from 'react';
 import InvoicePreview from '../components/InvoicePreview';
 import { useInvoiceStore } from '../store/useInvoiceStore';
+import { invoiceAPI } from '../services/api';
 import { formatCurrency, formatDate, cn } from '../utils/helpers';
 
 const StatusBadge = ({ status, onClick }) => {
@@ -135,23 +137,59 @@ export default function AllInvoices() {
 
   // Quick status toggle
   const handleQuickStatusToggle = async (invoice) => {
-    const statusCycle = { pending: 'paid', paid: 'overdue', overdue: 'pending' };
-    const newStatus = statusCycle[invoice.status] || 'pending';
-    const previousStatus = invoice.status;
+    if (invoice.status === 'pending') {
+      // Mark as paid with stock deduction
+      handleMarkAsPaid(invoice);
+    } else {
+      // Regular status toggle
+      const statusCycle = { paid: 'overdue', overdue: 'pending' };
+      const newStatus = statusCycle[invoice.status] || 'pending';
+      const previousStatus = invoice.status;
 
-    const updatedInvoices = invoices.map(inv =>
-      inv.id === invoice.id ? { ...inv, status: newStatus } : inv
-    );
-    useInvoiceStore.setState({ invoices: updatedInvoices });
+      const updatedInvoices = invoices.map(inv =>
+        inv.id === invoice.id ? { ...inv, status: newStatus } : inv
+      );
+      useInvoiceStore.setState({ invoices: updatedInvoices });
+
+      try {
+        await updateInvoice(invoice.id, { status: newStatus });
+      } catch (error) {
+        const rollbackInvoices = invoices.map(inv =>
+          inv.id === invoice.id ? { ...inv, status: previousStatus } : inv
+        );
+        useInvoiceStore.setState({ invoices: rollbackInvoices });
+        alert('Error updating status: ' + error.message);
+      }
+    }
+  };
+
+  // Mark invoice as paid (with stock deduction)
+  const handleMarkAsPaid = async (invoice) => {
+    if (!confirm('Mark this invoice as paid? Stock will be deducted for inventory items.')) {
+      return;
+    }
 
     try {
-      await updateInvoice(invoice.id, { status: newStatus });
+      await invoiceAPI.markAsPaid(invoice._id);
+      await fetchInvoices(); // Refresh list
+      alert('Invoice marked as paid and stock updated!');
     } catch (error) {
-      const rollbackInvoices = invoices.map(inv =>
-        inv.id === invoice.id ? { ...inv, status: previousStatus } : inv
-      );
-      useInvoiceStore.setState({ invoices: rollbackInvoices });
-      alert('Error updating status: ' + error.message);
+      alert('Error: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  // Cancel invoice (with stock return)
+  const handleCancelInvoice = async (invoice) => {
+    if (!confirm('Cancel this invoice? Stock will be returned if it was deducted.')) {
+      return;
+    }
+
+    try {
+      await invoiceAPI.cancel(invoice._id);
+      await fetchInvoices(); // Refresh list
+      alert('Invoice cancelled and stock returned!');
+    } catch (error) {
+      alert('Error: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -304,6 +342,15 @@ export default function AllInvoices() {
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-2">
+                        {invoice.status === 'pending' && (
+                          <button
+                            onClick={() => handleMarkAsPaid(invoice)}
+                            className="p-2 hover:bg-green-100 rounded-lg transition-colors"
+                            title="Mark as Paid"
+                          >
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleView(invoice)}
                           className="p-2 hover:bg-gray-200 rounded-lg transition-colors"

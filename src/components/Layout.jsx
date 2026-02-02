@@ -1,4 +1,4 @@
-import { Home, FileText, Plus, Menu, X } from 'lucide-react';
+import { Home, FileText, Plus, Menu, X, Package, History, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../utils/helpers';
 
@@ -6,6 +6,9 @@ const navigation = [
   { name: 'Dashboard', icon: Home, href: '#' },
   { name: 'All Invoices', icon: FileText, href: '#invoices' },
   { name: 'Create New', icon: Plus, href: '#create' },
+  { name: 'Inventory', icon: Package, href: '#inventory' },
+  { name: 'Stock History', icon: History, href: '#stock-history' },
+  { name: 'Sales Analytics', icon: BarChart3, href: '#sales-analytics' },
 ];
 
 export default function Layout({ children, currentPage, onNavigate }) {

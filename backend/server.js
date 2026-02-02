@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import invoiceRoutes from './routes/invoices.js';
+import productRoutes from './routes/products.js';
 
 // Load environment variables
 dotenv.config();
@@ -30,12 +31,14 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       invoices: '/api/invoices',
+      products: '/api/products',
       stats: '/api/invoices/stats',
     },
   });
 });
 
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/products', productRoutes);
 
 // 404 handler
 app.use((req, res) => {

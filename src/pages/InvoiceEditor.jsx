@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Plus, Trash2, Download, Save } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Trash2, Download, Save, Search } from 'lucide-react';
 import { useInvoiceStore } from '../store/useInvoiceStore';
+import useProductStore from '../store/useProductStore';
 import { formatCurrency, formatDate, generateInvoiceId } from '../utils/helpers';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -8,6 +9,14 @@ import InvoicePreview from '../components/InvoicePreview';
 
 export default function InvoiceEditor({ onNavigate }) {
   const addInvoice = useInvoiceStore((state) => state.addInvoice);
+  const { products, fetchProducts } = useProductStore();
+
+  const [showProductSelector, setShowProductSelector] = useState(null);
+  const [productSearch, setProductSearch] = useState('');
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const [formData, setFormData] = useState({
     id: generateInvoiceId(),
@@ -17,7 +26,7 @@ export default function InvoiceEditor({ onNavigate }) {
     dueDate: '',
     status: 'pending',
     taxRate: 0,
-    items: [{ desc: '', qty: 1, price: 0 }],
+    items: [{ productId: null, sku: '', desc: '', qty: 1, price: 0, stockAvailable: null }],
     signatureImage: null,
     stampImage: null,
     authorisedPerson: 'Authorised sign',
@@ -30,7 +39,7 @@ export default function InvoiceEditor({ onNavigate }) {
   const addItem = () => {
     setFormData((prev) => ({
       ...prev,
-      items: [...prev.items, { desc: '', qty: 1, price: 0 }],
+      items: [...prev.items, { productId: null, sku: '', desc: '', qty: 1, price: 0, stockAvailable: null }],
     }));
   };
 
@@ -41,6 +50,26 @@ export default function InvoiceEditor({ onNavigate }) {
     }));
   };
 
+  const selectProduct = (index, product) => {
+    setFormData((prev) => ({
+      ...prev,
+      items: prev.items.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              productId: product._id,
+              sku: product.sku,
+              desc: product.name,
+              price: product.price,
+              stockAvailable: product.stock,
+            }
+          : item
+      ),
+    }));
+    setShowProductSelector(null);
+    setProductSearch('');
+  };
+
   const updateItem = (index, field, value) => {
     setFormData((prev) => ({
       ...prev,
@@ -49,6 +78,12 @@ export default function InvoiceEditor({ onNavigate }) {
       ),
     }));
   };
+
+  const filteredProducts = products.filter(
+    (product) =>
+      product.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+      product.sku.toLowerCase().includes(productSearch.toLowerCase())
+  );
 
   const calculateSubtotal = () => {
     return formData.items.reduce((sum, item) => {
@@ -66,13 +101,23 @@ export default function InvoiceEditor({ onNavigate }) {
 
   const handleSave = async () => {
     try {
+      // Transform items to match backend schema
+      const transformedItems = formData.items.map(item => ({
+        productId: item.productId || null,
+        sku: item.sku || '',
+        desc: item.desc,
+        qty: item.qty,
+        price: item.price,
+        stockDeducted: false,
+      }));
+
       const invoice = {
         clientName: formData.clientName,
         clientEmail: formData.clientEmail,
         dateIssued: formData.dateIssued,
         dueDate: formData.dueDate,
         status: formData.status === 'draft' ? 'pending' : formData.status,
-        items: formData.items,
+        items: transformedItems,
         total: calculateTotal(),
         signatureImage: formData.signatureImage,
         stampImage: formData.stampImage,
@@ -84,6 +129,7 @@ export default function InvoiceEditor({ onNavigate }) {
       alert('Invoice saved successfully!');
       onNavigate('dashboard');
     } catch (error) {
+      console.error('Error creating invoice:', error);
       alert('Error creating invoice: ' + (error.response?.data?.message || error.message));
     }
   };
@@ -252,15 +298,94 @@ export default function InvoiceEditor({ onNavigate }) {
                     )}
                   </div>
 
-                  <input
-                    type="text"
-                    value={item.desc}
-                    onChange={(e) =>
-                      updateItem(index, 'desc', e.target.value)
-                    }
-                    placeholder="Description (e.g., Web Development)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
+                  {/* Product Selector */}
+                  <div className="relative">
+                    <label className="block text-xs text-gray-600 mb-1">
+                      Select Product from Inventory
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowProductSelector(index)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <Search className="w-4 h-4 text-gray-400" />
+                      <span className="text-gray-700">
+                        {item.productId ? `${item.sku} - ${item.desc}` : 'Choose from inventory...'}
+                      </span>
+                    </button>
+
+                    {/* Product Dropdown */}
+                    {showProductSelector === index && (
+                      <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-auto">
+                        <div className="p-2 border-b">
+                          <input
+                            type="text"
+                            value={productSearch}
+                            onChange={(e) => setProductSearch(e.target.value)}
+                            placeholder="Search products..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {filteredProducts.length > 0 ? (
+                            filteredProducts.map((product) => (
+                              <button
+                                key={product._id}
+                                type="button"
+                                onClick={() => selectProduct(index, product)}
+                                className="w-full px-3 py-2 text-left hover:bg-blue-50 border-b last:border-b-0"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-900">
+                                      {product.name}
+                                    </p>
+                                    <p className="text-xs text-gray-600">SKU: {product.sku}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Rp {product.price.toLocaleString('id-ID')}
+                                    </p>
+                                    <p className={`text-xs ${product.stock > 10 ? 'text-green-600' : 'text-red-600'}`}>
+                                      Stock: {product.stock} {product.unit}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-4 text-center text-sm text-gray-500">
+                              No products found
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowProductSelector(null)}
+                          className="w-full px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 border-t"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Manual Description (Optional) */}
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      Description / Notes
+                    </label>
+                    <input
+                      type="text"
+                      value={item.desc}
+                      onChange={(e) =>
+                        updateItem(index, 'desc', e.target.value)
+                      }
+                      placeholder="Description (e.g., Web Development)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -276,6 +401,14 @@ export default function InvoiceEditor({ onNavigate }) {
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       />
+                      {item.stockAvailable !== null && (
+                        <p className={`text-xs mt-1 ${item.qty > item.stockAvailable ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                          {item.qty > item.stockAvailable
+                            ? `⚠️ Insufficient stock! Available: ${item.stockAvailable}`
+                            : `Available: ${item.stockAvailable}`
+                          }
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">
