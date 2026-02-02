@@ -1,5 +1,7 @@
-import Product from '../models/Product.js';
-import StockHistory from '../models/StockHistory.js';
+import db from '../config/database.js';
+import { Op } from 'sequelize';
+
+const { Product, StockHistory } = db.models;
 
 // Get all products with filters
 export const getAllProducts = async (req, res) => {
@@ -13,34 +15,41 @@ export const getAllProducts = async (req, res) => {
       order = 'desc'
     } = req.query;
 
-    // Build query
-    const query = {};
+    // Build where clause
+    const where = {};
 
     if (category && category !== 'all') {
-      query.category = category;
+      where.category = category;
     }
 
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { sku: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
+      where[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { sku: { [Op.like]: `%${search}%` } },
+        { description: { [Op.like]: `%${search}%` } },
       ];
     }
 
     if (lowStock === 'true') {
-      query.$expr = { $lte: ['$stock', '$minStock'] };
+      where[Op.where] = db.sequelize.where(
+        db.sequelize.col('stock'),
+        Op.lte,
+        db.sequelize.col('minStock')
+      );
     }
 
     if (isActive !== undefined) {
-      query.isActive = isActive === 'true';
+      where.isActive = isActive === 'true';
     }
 
     // Sort
-    const sortOrder = order === 'asc' ? 1 : -1;
-    const sortOptions = { [sortBy]: sortOrder };
+    const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
+    const order_by = [[sortBy, sortOrder]];
 
-    const products = await Product.find(query).sort(sortOptions);
+    const products = await Product.findAll({
+      where,
+      order: order_by,
+    });
 
     res.json({
       success: true,
@@ -60,7 +69,7 @@ export const getAllProducts = async (req, res) => {
 // Get single product by ID
 export const getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findByPk(req.params.id);
 
     if (!product) {
       return res.status(404).json({
@@ -91,7 +100,7 @@ export const createProduct = async (req, res) => {
     // Create initial stock history
     if (product.stock > 0) {
       await StockHistory.create({
-        productId: product._id,
+        productId: product.id,
         type: 'IN',
         quantity: product.stock,
         previousStock: 0,
@@ -110,7 +119,7 @@ export const createProduct = async (req, res) => {
   } catch (error) {
     console.error('Create product error:', error);
 
-    if (error.code === 11000) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
       return res.status(400).json({
         success: false,
         message: 'SKU already exists',
@@ -128,7 +137,7 @@ export const createProduct = async (req, res) => {
 // Update product
 export const updateProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findByPk(req.params.id);
 
     if (!product) {
       return res.status(404).json({
@@ -138,17 +147,13 @@ export const updateProduct = async (req, res) => {
     }
 
     const previousStock = product.stock;
-    const updatedProduct = await Product.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
+    await product.update(req.body);
 
     // If stock changed, create history
     if (req.body.stock !== undefined && req.body.stock !== previousStock) {
       const stockDiff = req.body.stock - previousStock;
       await StockHistory.create({
-        productId: product._id,
+        productId: product.id,
         type: stockDiff > 0 ? 'IN' : 'OUT',
         quantity: Math.abs(stockDiff),
         previousStock,
@@ -162,7 +167,7 @@ export const updateProduct = async (req, res) => {
     res.json({
       success: true,
       message: 'Product updated successfully',
-      data: updatedProduct,
+      data: product,
     });
   } catch (error) {
     console.error('Update product error:', error);
@@ -177,7 +182,7 @@ export const updateProduct = async (req, res) => {
 // Delete product
 export const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findByPk(req.params.id);
 
     if (!product) {
       return res.status(404).json({
@@ -186,7 +191,7 @@ export const deleteProduct = async (req, res) => {
       });
     }
 
-    await Product.findByIdAndDelete(req.params.id);
+    await product.destroy();
 
     res.json({
       success: true,
@@ -205,10 +210,15 @@ export const deleteProduct = async (req, res) => {
 // Get products with low stock
 export const getLowStockProducts = async (req, res) => {
   try {
-    const products = await Product.find({
-      $expr: { $lte: ['$stock', '$minStock'] },
+    const products = await Product.findAll({
+      where: db.sequelize.where(
+        db.sequelize.col('stock'),
+        Op.lte,
+        db.sequelize.col('minStock')
+      ),
       isActive: true,
-    }).sort({ stock: 1 });
+      order: [['stock', 'ASC']],
+    });
 
     res.json({
       success: true,
@@ -231,20 +241,24 @@ export const getProductStockHistory = async (req, res) => {
     const { limit = 100 } = req.query;
     const productId = req.params.id;
 
-    // Build query - if no productId, get all history
-    const query = productId ? { productId } : {};
+    const where = productId ? { productId } : {};
 
-    const history = await StockHistory.find(query)
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .populate('productId', 'name sku');
+    const history = await StockHistory.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      include: [{
+        model: Product,
+        attributes: ['id', 'name', 'sku'],
+      }],
+    });
 
     res.json({
       success: true,
       count: history.length,
       data: history.map(h => ({
-        _id: h._id,
-        product: h.productId,
+        id: h.id,
+        product: h.Product,
         type: h.type,
         quantity: h.quantity,
         quantityBefore: h.previousStock,
@@ -268,20 +282,28 @@ export const getProductStockHistory = async (req, res) => {
 // Get inventory statistics
 export const getInventoryStats = async (req, res) => {
   try {
-    const totalProducts = await Product.countDocuments({ isActive: true });
-    const lowStockCount = await Product.countDocuments({
-      $expr: { $lte: ['$stock', '$minStock'] },
+    const totalProducts = await Product.count({ where: { isActive: true } });
+    const lowStockCount = await Product.count({
+      where: db.sequelize.where(
+        db.sequelize.col('stock'),
+        Op.lte,
+        db.sequelize.col('minStock')
+      ),
       isActive: true,
     });
 
-    const products = await Product.find({ isActive: true });
+    const products = await Product.findAll({ where: { isActive: true } });
 
     const totalStockValue = products.reduce((sum, p) => sum + (p.stock * p.cost), 0);
     const totalRetailValue = products.reduce((sum, p) => sum + (p.stock * p.price), 0);
     const totalItems = products.reduce((sum, p) => sum + p.stock, 0);
 
     // Get categories
-    const categories = await Product.distinct('category');
+    const categories = await db.sequelize.query(
+      'SELECT DISTINCT category FROM Products'
+    );
+
+    const categoryList = categories[0].map(c => c.category);
 
     res.json({
       success: true,
@@ -291,8 +313,8 @@ export const getInventoryStats = async (req, res) => {
         totalStockValue,
         totalRetailValue,
         totalItems,
-        categories: categories.length,
-        categoryList: categories,
+        categories: categoryList.length,
+        categoryList,
       },
     });
   } catch (error) {
@@ -310,7 +332,7 @@ export const adjustStock = async (req, res) => {
   try {
     const { quantity, type, notes, createdBy } = req.body;
 
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findByPk(req.params.id);
 
     if (!product) {
       return res.status(404).json({
@@ -341,7 +363,7 @@ export const adjustStock = async (req, res) => {
 
     // Create stock history
     await StockHistory.create({
-      productId: product._id,
+      productId: product.id,
       type,
       quantity: Math.abs(quantity),
       previousStock,

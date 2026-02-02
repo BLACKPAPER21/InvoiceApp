@@ -1,11 +1,13 @@
-import Invoice from '../models/Invoice.js';
-import Product from '../models/Product.js';
-import StockHistory from '../models/StockHistory.js';
+import db from '../config/database.js';
+
+const { Invoice, Product, StockHistory } = db.models;
 
 // Get all invoices
 export const getAllInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find().sort({ createdAt: -1 });
+    const invoices = await Invoice.findAll({
+      order: [['createdAt', 'DESC']],
+    });
     res.json({
       success: true,
       count: invoices.length,
@@ -23,7 +25,9 @@ export const getAllInvoices = async (req, res) => {
 // Get single invoice by ID
 export const getInvoiceById = async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ id: req.params.id });
+    const invoice = await Invoice.findOne({
+      where: { invoiceId: req.params.id },
+    });
 
     if (!invoice) {
       return res.status(404).json({
@@ -75,18 +79,18 @@ export const createInvoice = async (req, res) => {
 
     // Generate unique invoice ID with timestamp to avoid duplicates
     const year = new Date().getFullYear();
-    const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
-    const count = await Invoice.countDocuments();
+    const timestamp = Date.now().toString().slice(-6);
+    const count = await Invoice.count();
     const invoiceId = `INV-${year}-${String(count + 1).padStart(3, '0')}-${timestamp}`;
 
     const invoiceData = {
       ...req.body,
-      id: invoiceId,
+      invoiceId: invoiceId,
     };
 
     console.log('Attempting to create invoice with ID:', invoiceId);
     const invoice = await Invoice.create(invoiceData);
-    console.log('✅ Invoice created successfully:', invoice.id);
+    console.log('✅ Invoice created successfully:', invoice.invoiceId);
 
     res.status(201).json({
       success: true,
@@ -97,16 +101,12 @@ export const createInvoice = async (req, res) => {
     console.error('=== ERROR CREATING INVOICE ===');
     console.error('Error name:', error.name);
     console.error('Error message:', error.message);
-    if (error.errors) {
-      console.error('Validation errors:', JSON.stringify(error.errors, null, 2));
-    }
     console.error('Full error:', error);
 
     res.status(400).json({
       success: false,
       message: 'Error creating invoice',
       error: error.message,
-      details: error.errors || null,
     });
   }
 };
@@ -114,21 +114,20 @@ export const createInvoice = async (req, res) => {
 // Update invoice
 export const updateInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findOneAndUpdate(
-      { id: req.params.id },
-      req.body,
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
+    const [updated] = await Invoice.update(req.body, {
+      where: { invoiceId: req.params.id },
+    });
 
-    if (!invoice) {
+    if (updated === 0) {
       return res.status(404).json({
         success: false,
         message: 'Invoice not found',
       });
     }
+
+    const invoice = await Invoice.findOne({
+      where: { invoiceId: req.params.id },
+    });
 
     res.json({
       success: true,
@@ -147,7 +146,9 @@ export const updateInvoice = async (req, res) => {
 // Delete invoice
 export const deleteInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findOneAndDelete({ id: req.params.id });
+    const invoice = await Invoice.findOne({
+      where: { invoiceId: req.params.id },
+    });
 
     if (!invoice) {
       return res.status(404).json({
@@ -155,6 +156,8 @@ export const deleteInvoice = async (req, res) => {
         message: 'Invoice not found',
       });
     }
+
+    await invoice.destroy();
 
     res.json({
       success: true,
@@ -173,15 +176,17 @@ export const deleteInvoice = async (req, res) => {
 // Get invoice statistics
 export const getInvoiceStats = async (req, res) => {
   try {
-    const invoices = await Invoice.find();
+    const invoices = await Invoice.findAll();
+
+    const paidInvoices = invoices.filter((inv) => inv.status === 'paid');
+    const pendingInvoices = invoices.filter((inv) => inv.status === 'pending');
+    const overdueInvoices = invoices.filter((inv) => inv.status === 'overdue');
 
     const stats = {
-      totalRevenue: invoices
-        .filter((inv) => inv.status === 'paid')
-        .reduce((sum, inv) => sum + inv.total, 0),
-      pendingCount: invoices.filter((inv) => inv.status === 'pending').length,
-      paidCount: invoices.filter((inv) => inv.status === 'paid').length,
-      overdueCount: invoices.filter((inv) => inv.status === 'overdue').length,
+      totalRevenue: paidInvoices.reduce((sum, inv) => sum + parseFloat(inv.total || 0), 0),
+      pendingCount: pendingInvoices.length,
+      paidCount: paidInvoices.length,
+      overdueCount: overdueInvoices.length,
       totalInvoices: invoices.length,
     };
 
@@ -201,7 +206,9 @@ export const getInvoiceStats = async (req, res) => {
 // Mark invoice as paid and deduct stock
 export const markInvoiceAsPaid = async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id);
+    const invoice = await Invoice.findOne({
+      where: { invoiceId: req.params.id },
+    });
 
     if (!invoice) {
       return res.status(404).json({
@@ -218,9 +225,10 @@ export const markInvoiceAsPaid = async (req, res) => {
     }
 
     // Deduct stock for each item
-    for (const item of invoice.items) {
+    const items = invoice.items || [];
+    for (const item of items) {
       if (item.productId && !item.stockDeducted) {
-        const product = await Product.findById(item.productId);
+        const product = await Product.findByPk(item.productId);
 
         if (!product) {
           return res.status(404).json({
@@ -243,14 +251,14 @@ export const markInvoiceAsPaid = async (req, res) => {
 
         // Create stock history
         await StockHistory.create({
-          productId: product._id,
+          productId: product.id,
           type: 'OUT',
           quantity: item.qty,
           previousStock,
           newStock: product.stock,
-          reference: invoice.id,
+          reference: invoice.invoiceId,
           referenceType: 'invoice',
-          notes: `Sold via invoice ${invoice.id} to ${invoice.clientName}`,
+          notes: `Sold via invoice ${invoice.invoiceId} to ${invoice.clientName}`,
           createdBy: 'system',
         });
 
@@ -261,6 +269,7 @@ export const markInvoiceAsPaid = async (req, res) => {
 
     // Update invoice status
     invoice.status = 'paid';
+    invoice.items = items;
     await invoice.save();
 
     res.json({
@@ -281,7 +290,9 @@ export const markInvoiceAsPaid = async (req, res) => {
 // Cancel invoice and return stock
 export const cancelInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id);
+    const invoice = await Invoice.findOne({
+      where: { invoiceId: req.params.id },
+    });
 
     if (!invoice) {
       return res.status(404).json({
@@ -291,9 +302,10 @@ export const cancelInvoice = async (req, res) => {
     }
 
     // Return stock for items that were deducted
-    for (const item of invoice.items) {
+    const items = invoice.items || [];
+    for (const item of items) {
       if (item.productId && item.stockDeducted) {
-        const product = await Product.findById(item.productId);
+        const product = await Product.findByPk(item.productId);
 
         if (product) {
           // Return stock
@@ -303,14 +315,14 @@ export const cancelInvoice = async (req, res) => {
 
           // Create stock history
           await StockHistory.create({
-            productId: product._id,
+            productId: product.id,
             type: 'IN',
             quantity: item.qty,
             previousStock,
             newStock: product.stock,
-            reference: invoice.id,
+            reference: invoice.invoiceId,
             referenceType: 'invoice',
-            notes: `Invoice ${invoice.id} cancelled - stock returned`,
+            notes: `Invoice ${invoice.invoiceId} cancelled - stock returned`,
             createdBy: 'system',
           });
 
@@ -321,7 +333,7 @@ export const cancelInvoice = async (req, res) => {
     }
 
     // Delete invoice
-    await Invoice.findByIdAndDelete(req.params.id);
+    await invoice.destroy();
 
     res.json({
       success: true,
@@ -336,33 +348,36 @@ export const cancelInvoice = async (req, res) => {
     });
   }
 };
-// Add this to the end of invoiceController.js
-
 // Get sales analytics
 export const getSalesAnalytics = async (req, res) => {
   try {
-    const { period = 30 } = req.query; // days
+    const { period = 30 } = req.query;
     const daysAgo = parseInt(period);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysAgo);
 
     // Get all invoices in period
-    const invoices = await Invoice.find({
-      dateIssued: { $gte: startDate.toISOString().split('T')[0] },
+    const invoices = await Invoice.findAll({
+      where: {
+        dateIssued: {
+          [db.Sequelize.Op.gte]: startDate.toISOString().split('T')[0],
+        },
+      },
     });
 
     // Summary statistics
     const paidInvoices = invoices.filter((inv) => inv.status === 'paid');
-    const totalRevenue = paidInvoices.reduce((sum, inv) => sum + inv.total, 0);
+    const totalRevenue = paidInvoices.reduce((sum, inv) => sum + parseFloat(inv.total || 0), 0);
     const totalItemsSold = paidInvoices.reduce((sum, inv) => {
-      return sum + inv.items.reduce((itemSum, item) => itemSum + item.qty, 0);
+      const items = inv.items || [];
+      return sum + items.reduce((itemSum, item) => itemSum + (item.qty || 0), 0);
     }, 0);
 
-    // Revenue trend (group by date)
+    // Revenue trend
     const revenueTrend = {};
     paidInvoices.forEach((inv) => {
       const date = inv.dateIssued;
-      revenueTrend[date] = (revenueTrend[date] || 0) + inv.total;
+      revenueTrend[date] = (revenueTrend[date] || 0) + parseFloat(inv.total || 0);
     });
 
     const revenueTrendArray = Object.keys(revenueTrend)
@@ -391,13 +406,14 @@ export const getSalesAnalytics = async (req, res) => {
     // Top products
     const productStats = {};
     paidInvoices.forEach((inv) => {
-      inv.items.forEach((item) => {
+      const items = inv.items || [];
+      items.forEach((item) => {
         const key = item.desc;
         if (!productStats[key]) {
           productStats[key] = { name: key, quantity: 0, revenue: 0 };
         }
-        productStats[key].quantity += item.qty;
-        productStats[key].revenue += item.qty * item.price;
+        productStats[key].quantity += item.qty || 0;
+        productStats[key].revenue += (item.qty || 0) * (item.price || 0);
       });
     });
 
@@ -405,29 +421,31 @@ export const getSalesAnalytics = async (req, res) => {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
-    // Recent high-value transactions
+    // Recent transactions
     const recentTransactions = invoices
       .sort((a, b) => new Date(b.dateIssued) - new Date(a.dateIssued))
       .slice(0, 10)
       .map((inv) => ({
-        id: inv.id,
+        id: inv.invoiceId,
         clientName: inv.clientName,
         dateIssued: inv.dateIssued,
         total: inv.total,
         status: inv.status,
       }));
 
-    // Calculate growth (compare with previous period)
+    // Calculate growth
     const prevStartDate = new Date(startDate);
     prevStartDate.setDate(prevStartDate.getDate() - daysAgo);
-    const prevInvoices = await Invoice.find({
-      dateIssued: {
-        $gte: prevStartDate.toISOString().split('T')[0],
-        $lt: startDate.toISOString().split('T')[0],
+    const prevInvoices = await Invoice.findAll({
+      where: {
+        dateIssued: {
+          [db.Sequelize.Op.gte]: prevStartDate.toISOString().split('T')[0],
+          [db.Sequelize.Op.lt]: startDate.toISOString().split('T')[0],
+        },
+        status: 'paid',
       },
-      status: 'paid',
     });
-    const prevRevenue = prevInvoices.reduce((sum, inv) => sum + inv.total, 0);
+    const prevRevenue = prevInvoices.reduce((sum, inv) => sum + parseFloat(inv.total || 0), 0);
     const revenueGrowth =
       prevRevenue > 0 ? (((totalRevenue - prevRevenue) / prevRevenue) * 100).toFixed(1) : 0;
 

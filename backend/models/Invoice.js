@@ -1,113 +1,73 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
 
-const invoiceSchema = new mongoose.Schema(
-  {
-    id: {
-      type: String,
-      required: true,
-      unique: true,
-      index: true,
-    },
-    clientName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    clientEmail: {
-      type: String,
-      required: true,
-      trim: true,
-      lowercase: true,
-    },
-    status: {
-      type: String,
-      enum: ['pending', 'paid', 'overdue'],
-      default: 'pending',
-    },
-    signatureImage: {
-      type: String, // Base64 string
-    },
-    stampImage: {
-      type: String, // Base64 string
-    },
-    authorisedPerson: {
-      type: String,
-    },
-    taxRate: {
-      type: Number,
-      default: 0,
-    },
-    dateIssued: {
-      type: String,
-      required: true,
-    },
-    dueDate: {
-      type: String,
-      required: true,
-    },
-    items: [
-      {
-        productId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'Product',
-          default: null,
-        },
-        sku: {
-          type: String,
-          default: '',
-        },
-        desc: {
-          type: String,
-          required: true,
-        },
-        qty: {
-          type: Number,
-          required: true,
-          min: 1,
-        },
-        price: {
-          type: Number,
-          required: true,
-          min: 0,
-        },
-        stockDeducted: {
-          type: Boolean,
-          default: false,
-        },
+export default (sequelize) => {
+  const Invoice = sequelize.define(
+    'Invoice',
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
       },
-    ],
-    total: {
-      type: Number,
-      required: true,
-      min: 0,
+      invoiceId: {
+        type: DataTypes.STRING,
+        unique: true,
+        allowNull: false,
+      },
+      clientName: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      clientEmail: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      status: {
+        type: DataTypes.ENUM('pending', 'paid', 'overdue'),
+        defaultValue: 'pending',
+      },
+      signatureImage: {
+        type: DataTypes.TEXT,
+      },
+      stampImage: {
+        type: DataTypes.TEXT,
+      },
+      authorisedPerson: {
+        type: DataTypes.STRING,
+      },
+      taxRate: {
+        type: DataTypes.DECIMAL(5, 2),
+        defaultValue: 0,
+      },
+      dateIssued: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      dueDate: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      items: {
+        type: DataTypes.JSON,
+        defaultValue: [],
+      },
+      total: {
+        type: DataTypes.DECIMAL(15, 2),
+        allowNull: false,
+      },
+      createdAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
     },
-  },
-  {
-    timestamps: true,
-  }
-);
+    {
+      timestamps: true,
+    }
+  );
 
-// Virtual for formatted total
-invoiceSchema.virtual('formattedTotal').get(function () {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-  }).format(this.total);
-});
-
-// Auto-calculate total before saving
-invoiceSchema.pre('save', function (next) {
-  if (this.items && this.items.length > 0) {
-    const subtotal = this.items.reduce((sum, item) => {
-      return sum + item.qty * item.price;
-    }, 0);
-
-    const taxAmount = subtotal * (this.taxRate / 100);
-    this.total = subtotal + taxAmount;
-  }
-  next();
-});
-
-const Invoice = mongoose.model('Invoice', invoiceSchema);
-
-export default Invoice;
+  return Invoice;
+};

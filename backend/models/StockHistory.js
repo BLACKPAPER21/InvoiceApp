@@ -1,59 +1,67 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
 
-const stockHistorySchema = new mongoose.Schema(
-  {
-    productId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
-      required: [true, 'Product ID is required'],
+export default (sequelize) => {
+  const StockHistory = sequelize.define(
+    'StockHistory',
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      productId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'Products',
+          key: 'id',
+        },
+      },
+      type: {
+        type: DataTypes.ENUM('IN', 'OUT', 'ADJUSTMENT'),
+        allowNull: false,
+      },
+      quantity: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      previousStock: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      newStock: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      reference: {
+        type: DataTypes.STRING,
+        defaultValue: '',
+      },
+      referenceType: {
+        type: DataTypes.ENUM('invoice', 'purchase', 'manual', 'adjustment'),
+        defaultValue: 'manual',
+      },
+      notes: {
+        type: DataTypes.TEXT,
+        defaultValue: '',
+      },
+      createdBy: {
+        type: DataTypes.STRING,
+        defaultValue: 'system',
+      },
+      createdAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
     },
-    type: {
-      type: String,
-      enum: ['IN', 'OUT', 'ADJUSTMENT'],
-      required: [true, 'Transaction type is required'],
-    },
-    quantity: {
-      type: Number,
-      required: [true, 'Quantity is required'],
-    },
-    previousStock: {
-      type: Number,
-      required: [true, 'Previous stock is required'],
-    },
-    newStock: {
-      type: Number,
-      required: [true, 'New stock is required'],
-    },
-    reference: {
-      type: String,
-      default: '',
-      trim: true,
-    },
-    referenceType: {
-      type: String,
-      enum: ['invoice', 'purchase', 'manual', 'adjustment'],
-      default: 'manual',
-    },
-    notes: {
-      type: String,
-      default: '',
-      trim: true,
-    },
-    createdBy: {
-      type: String,
-      default: 'system',
-      trim: true,
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+    {
+      timestamps: true,
+    }
+  );
 
-// Index for queries
-stockHistorySchema.index({ productId: 1, createdAt: -1 });
-stockHistorySchema.index({ reference: 1 });
-
-const StockHistory = mongoose.model('StockHistory', stockHistorySchema);
-
-export default StockHistory;
+  return StockHistory;
+};

@@ -1,7 +1,7 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import sequelize from './config/database.js';
 import invoiceRoutes from './routes/invoices.js';
 import productRoutes from './routes/products.js';
 
@@ -10,7 +10,6 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/invoiceapp';
 
 // Middleware
 app.use(cors());
@@ -58,28 +57,34 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Connect to MongoDB and start server
-mongoose
-  .connect(MONGODB_URI)
-  .then(() => {
-    console.log('✅ Connected to MongoDB');
-    console.log(`📦 Database: ${mongoose.connection.name}`);
+// Connect to MySQL and start server
+const startServer = async () => {
+  try {
+    // Test connection and sync database
+    await sequelize.authenticate();
+    console.log('✅ Connected to MySQL');
+
+    // Sync models with database (creates tables if they don't exist)
+    await sequelize.sync({ alter: true });
+    console.log('✅ Database tables synced');
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
       console.log(`📝 API Docs: http://localhost:${PORT}/api/invoices`);
       console.log(`🔥 Environment: ${process.env.NODE_ENV || 'development'}`);
     });
-  })
-  .catch((error) => {
-    console.error('❌ MongoDB connection error:', error.message);
+  } catch (error) {
+    console.error('❌ Database connection error:', error.message);
     process.exit(1);
-  });
+  }
+};
+
+startServer();
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down gracefully...');
-  await mongoose.connection.close();
-  console.log('✅ MongoDB connection closed');
+  await sequelize.close();
+  console.log('✅ MySQL connection closed');
   process.exit(0);
 });

@@ -1,30 +1,37 @@
-// Add this to the end of invoiceController.js
+import db from '../config/database.js';
+
+const { Invoice } = db.models;
 
 // Get sales analytics
 export const getSalesAnalytics = async (req, res) => {
   try {
-    const { period = 30 } = req.query; // days
+    const { period = 30 } = req.query;
     const daysAgo = parseInt(period);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysAgo);
 
     // Get all invoices in period
-    const invoices = await Invoice.find({
-      dateIssued: { $gte: startDate.toISOString().split('T')[0] },
+    const invoices = await Invoice.findAll({
+      where: {
+        dateIssued: {
+          [db.Sequelize.Op.gte]: startDate.toISOString().split('T')[0],
+        },
+      },
     });
 
     // Summary statistics
     const paidInvoices = invoices.filter((inv) => inv.status === 'paid');
-    const totalRevenue = paidInvoices.reduce((sum, inv) => sum + inv.total, 0);
+    const totalRevenue = paidInvoices.reduce((sum, inv) => sum + parseFloat(inv.total || 0), 0);
     const totalItemsSold = paidInvoices.reduce((sum, inv) => {
-      return sum + inv.items.reduce((itemSum, item) => itemSum + item.qty, 0);
+      const items = inv.items || [];
+      return sum + items.reduce((itemSum, item) => itemSum + (item.qty || 0), 0);
     }, 0);
 
-    // Revenue trend (group by date)
+    // Revenue trend
     const revenueTrend = {};
     paidInvoices.forEach((inv) => {
       const date = inv.dateIssued;
-      revenueTrend[date] = (revenueTrend[date] || 0) + inv.total;
+      revenueTrend[date] = (revenueTrend[date] || 0) + parseFloat(inv.total || 0);
     });
 
     const revenueTrendArray = Object.keys(revenueTrend)
@@ -53,13 +60,14 @@ export const getSalesAnalytics = async (req, res) => {
     // Top products
     const productStats = {};
     paidInvoices.forEach((inv) => {
-      inv.items.forEach((item) => {
+      const items = inv.items || [];
+      items.forEach((item) => {
         const key = item.desc;
         if (!productStats[key]) {
           productStats[key] = { name: key, quantity: 0, revenue: 0 };
         }
-        productStats[key].quantity += item.qty;
-        productStats[key].revenue += item.qty * item.price;
+        productStats[key].quantity += item.qty || 0;
+        productStats[key].revenue += (item.qty || 0) * (item.price || 0);
       });
     });
 
@@ -67,29 +75,31 @@ export const getSalesAnalytics = async (req, res) => {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
-    // Recent high-value transactions
+    // Recent transactions
     const recentTransactions = invoices
       .sort((a, b) => new Date(b.dateIssued) - new Date(a.dateIssued))
       .slice(0, 10)
       .map((inv) => ({
-        id: inv.id,
+        id: inv.invoiceId,
         clientName: inv.clientName,
         dateIssued: inv.dateIssued,
         total: inv.total,
         status: inv.status,
       }));
 
-    // Calculate growth (compare with previous period)
+    // Calculate growth
     const prevStartDate = new Date(startDate);
     prevStartDate.setDate(prevStartDate.getDate() - daysAgo);
-    const prevInvoices = await Invoice.find({
-      dateIssued: {
-        $gte: prevStartDate.toISOString().split('T')[0],
-        $lt: startDate.toISOString().split('T')[0],
+    const prevInvoices = await Invoice.findAll({
+      where: {
+        dateIssued: {
+          [db.Sequelize.Op.gte]: prevStartDate.toISOString().split('T')[0],
+          [db.Sequelize.Op.lt]: startDate.toISOString().split('T')[0],
+        },
+        status: 'paid',
       },
-      status: 'paid',
     });
-    const prevRevenue = prevInvoices.reduce((sum, inv) => sum + inv.total, 0);
+    const prevRevenue = prevInvoices.reduce((sum, inv) => sum + parseFloat(inv.total || 0), 0);
     const revenueGrowth =
       prevRevenue > 0 ? (((totalRevenue - prevRevenue) / prevRevenue) * 100).toFixed(1) : 0;
 
