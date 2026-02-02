@@ -24,6 +24,19 @@ const invoiceSchema = new mongoose.Schema(
       enum: ['pending', 'paid', 'overdue'],
       default: 'pending',
     },
+    signatureImage: {
+      type: String, // Base64 string
+    },
+    stampImage: {
+      type: String, // Base64 string
+    },
+    authorisedPerson: {
+      type: String,
+    },
+    taxRate: {
+      type: Number,
+      default: 0,
+    },
     dateIssued: {
       type: String,
       required: true,
@@ -72,9 +85,12 @@ invoiceSchema.virtual('formattedTotal').get(function () {
 // Auto-calculate total before saving
 invoiceSchema.pre('save', function (next) {
   if (this.items && this.items.length > 0) {
-    this.total = this.items.reduce((sum, item) => {
+    const subtotal = this.items.reduce((sum, item) => {
       return sum + item.qty * item.price;
     }, 0);
+
+    const taxAmount = subtotal * (this.taxRate / 100);
+    this.total = subtotal + taxAmount;
   }
   next();
 });

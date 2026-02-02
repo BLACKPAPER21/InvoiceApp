@@ -16,7 +16,7 @@
   }
 
   .btn-primary {
-    @apply px-4 py-2 bg-navy hover:bg-navy-dark text-white font-medium rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5;
+    @apply px-4 py-2 bg-gradient-to-r from-accent to-accent-hover hover:from-accent-hover hover:to-accent text-white font-medium rounded-lg transition-all duration-300 shadow-lg shadow-accent/20 hover:shadow-xl hover:shadow-accent/30 transform hover:-translate-y-0.5;
   }
 
   .btn-secondary {

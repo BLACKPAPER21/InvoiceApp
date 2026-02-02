@@ -4,6 +4,7 @@ import { useInvoiceStore } from '../store/useInvoiceStore';
 import { formatCurrency, formatDate, generateInvoiceId } from '../utils/helpers';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import InvoicePreview from '../components/InvoicePreview';
 
 export default function InvoiceEditor({ onNavigate }) {
   const addInvoice = useInvoiceStore((state) => state.addInvoice);
@@ -15,7 +16,11 @@ export default function InvoiceEditor({ onNavigate }) {
     dateIssued: new Date().toISOString().split('T')[0],
     dueDate: '',
     status: 'pending',
+    taxRate: 0,
     items: [{ desc: '', qty: 1, price: 0 }],
+    signatureImage: null,
+    stampImage: null,
+    authorisedPerson: 'Authorised sign',
   });
 
   const updateField = (field, value) => {
@@ -45,10 +50,18 @@ export default function InvoiceEditor({ onNavigate }) {
     }));
   };
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return formData.items.reduce((sum, item) => {
       return sum + item.qty * item.price;
     }, 0);
+  };
+
+  const calculateTax = () => {
+    return calculateSubtotal() * (formData.taxRate / 100);
+  };
+
+  const calculateTotal = () => {
+    return calculateSubtotal() + calculateTax();
   };
 
   const handleSave = async () => {
@@ -61,6 +74,10 @@ export default function InvoiceEditor({ onNavigate }) {
         status: formData.status === 'draft' ? 'pending' : formData.status,
         items: formData.items,
         total: calculateTotal(),
+        signatureImage: formData.signatureImage,
+        stampImage: formData.stampImage,
+        authorisedPerson: formData.authorisedPerson,
+        taxRate: formData.taxRate,
       };
 
       await addInvoice(invoice);
@@ -73,17 +90,31 @@ export default function InvoiceEditor({ onNavigate }) {
 
   const handleDownloadPDF = async () => {
     const element = document.getElementById('invoice-preview');
+    // Use slightly higher scale for better quality, but not too high to crash mobile
     const canvas = await html2canvas(element, {
       scale: 2,
       backgroundColor: '#ffffff',
+      logging: false,
+      useCORS: true // Ensure images are loaded
     });
 
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    // A4 Dimensions: 210mm x 297mm
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    // Calculate aspect ratios
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+
+    const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+
+    const imgX = (pdfWidth - imgWidth * ratio) / 2;
+    const imgY = 0; // Align to top
+
+    pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
     pdf.save(`${formData.id}.pdf`);
   };
 
@@ -270,9 +301,35 @@ export default function InvoiceEditor({ onNavigate }) {
             </div>
           </div>
 
-          {/* Total */}
-          <div className="border-t pt-4">
-            <div className="flex justify-between items-center">
+          {/* Tax & Total */}
+          <div className="border-t pt-4 space-y-3">
+            <div className="flex justify-end">
+              <div className="w-1/2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tax Rate (%)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formData.taxRate}
+                  onChange={(e) => updateField('taxRate', parseFloat(e.target.value) || 0)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center text-gray-600">
+              <span className="text-sm">Subtotal:</span>
+              <span className="font-medium">{formatCurrency(calculateSubtotal())}</span>
+            </div>
+
+            <div className="flex justify-between items-center text-gray-600">
+              <span className="text-sm">Tax ({formData.taxRate}%):</span>
+              <span className="font-medium">{formatCurrency(calculateTax())}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-t pt-3 mt-2">
               <span className="text-lg font-semibold text-gray-700">
                 Total Amount:
               </span>
@@ -281,157 +338,97 @@ export default function InvoiceEditor({ onNavigate }) {
               </span>
             </div>
           </div>
-        </div>
 
-        {/* RIGHT: Live Preview */}
-        <div className="glass-card p-8" id="invoice-preview">
-          <div className="bg-white rounded-lg shadow-lg p-8 space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-start pb-8 border-b-2 border-gray-200">
-              {/* Left: Logo */}
+          {/* Signature & Authorization */}
+          <div className="border-t pt-4 space-y-4">
+            <h3 className="text-sm font-medium text-gray-700">Signature & Authorization</h3>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-2">
+                Authorised Person Name
+              </label>
+              <input
+                type="text"
+                value={formData.authorisedPerson}
+                onChange={(e) => updateField('authorisedPerson', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent"
+                placeholder="e.g. John Doe"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <img
-                  src="/assets/codeinkamu-logo.png"
-                  alt="CodeInKamu"
-                  className="h-40 w-auto object-contain"
+                <label className="block text-sm font-medium text-gray-600 mb-2">
+                  Digital Signature
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        updateField('signatureImage', reader.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-navy/10 file:text-navy hover:file:bg-navy/20"
                 />
               </div>
 
-              {/* Right: Invoice Details */}
-              <div className="text-right h-40 flex flex-col justify-center gap-2">
-                <h2 className="text-4xl font-display font-bold text-navy tracking-tight leading-none">
-                  INVOICE
-                </h2>
-                <div>
-                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">
-                    INVOICE NO: {formData.id}
-                  </p>
-                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-                    DATE: {formatDate(formData.dateIssued)}
-                  </p>
-                </div>
-              </div>
-            </div>
-            {/* Bill To */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">
-                Bill To:
-              </h3>
-              <p className="text-lg font-semibold text-gray-900">
-                {formData.clientName || 'Client Name'}
-              </p>
-              <p className="text-sm text-gray-600">
-                {formData.clientEmail || 'client@example.com'}
-              </p>
-            </div>
-
-            {/* Due Date */}
-            {formData.dueDate && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <p className="text-sm font-medium text-amber-800">
-                  Due Date: {formatDate(formData.dueDate)}
-                </p>
-              </div>
-            )}
-
-            {/* Items Table */}
-            <div>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-gray-300">
-                    <th className="text-left py-2 text-sm font-semibold text-gray-700">
-                      Description
-                    </th>
-                    <th className="text-center py-2 text-sm font-semibold text-gray-700">
-                      Qty
-                    </th>
-                    <th className="text-right py-2 text-sm font-semibold text-gray-700">
-                      Price
-                    </th>
-                    <th className="text-right py-2 text-sm font-semibold text-gray-700">
-                      Amount
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {formData.items.map((item, index) => (
-                    <tr key={index} className="border-b border-gray-200">
-                      <td className="py-3 text-sm text-gray-900">
-                        {item.desc || '-'}
-                      </td>
-                      <td className="py-3 text-sm text-center text-gray-700">
-                        {item.qty}
-                      </td>
-                      <td className="py-3 text-sm text-right text-gray-700">
-                        {formatCurrency(item.price)}
-                      </td>
-                      <td className="py-3 text-sm text-right font-semibold text-gray-900">
-                        {formatCurrency(item.qty * item.price)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Total */}
-            <div className="border-t-2 border-gray-300 pt-4">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-semibold text-gray-700">
-                  TOTAL
-                </span>
-                <span className="text-3xl font-bold text-navy">
-                  {formatCurrency(calculateTotal())}
-                </span>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-2">
+                  Company Stamp
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        updateField('stampImage', reader.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-navy/10 file:text-navy hover:file:bg-navy/20"
+                />
               </div>
             </div>
 
-            {/* Footer Reference Layout */}
-            <div className="mt-16 pt-8 border-t-2 border-gray-100">
-              <div className="flex justify-between items-end pb-12 gap-8">
-                {/* Left: Payment Method */}
-                <div className="text-left space-y-4 flex-1">
-                  <h4 className="text-sm font-bold text-orange-500 uppercase tracking-wide">
-                    Payment Method:
-                  </h4>
-                  <div className="grid grid-cols-[100px_1fr] gap-y-2 text-xs text-gray-700">
-                    <span className="font-bold text-navy">Account No:</span>
-                    <span className="font-medium">123 456 7890</span>
-
-                    <span className="font-bold text-navy">Account Name:</span>
-                    <span className="font-medium whitespace-nowrap">CODEINKAMU AGENCY</span>
-
-                    <span className="font-bold text-navy">Branch Name:</span>
-                    <span className="font-medium whitespace-nowrap">BCA - KCP JAKARTA</span>
-                  </div>
-                </div>
-
-                {/* Right: Signature */}
-                <div className="text-center pt-8">
-                  <div className="h-16 w-32 mb-2 flex items-end justify-center">
-                     {/* Placeholder */}
-                  </div>
-                  <div className="w-40 border-t font-bold border-gray-400 pt-3">
-                    <p className="text-sm font-bold text-navy">Authorised sign</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Company Address & Info */}
-              <div className="pt-6 border-t border-gray-100">
-                <h4 className="text-sm font-bold text-orange-500 mb-2">Office Address:</h4>
-                <div className="text-xs text-gray-500 leading-relaxed">
-                   <p className="font-bold text-navy text-sm mb-1">CODEINKAMU AGENCY</p>
-                   <p>Jl. Teknologi No. 45, Creative Hub</p>
-                   <p>Jakarta Selatan, Indonesia 12345</p>
-                   <p className="mt-2 text-gray-600">
-                     <span className="font-semibold text-navy">Email:</span> info@codeinkamu.com &nbsp;|&nbsp;
-                     <span className="font-semibold text-navy">Phone:</span> +62 812-3456-7890
-                   </p>
-                </div>
-              </div>
+            <div className="flex justify-end gap-3 mt-2">
+              {formData.signatureImage && (
+                <button
+                  onClick={() => updateField('signatureImage', null)}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium"
+                >
+                  Remove Signature
+                </button>
+              )}
+              {formData.stampImage && (
+                <button
+                  onClick={() => updateField('stampImage', null)}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium"
+                >
+                  Remove Stamp
+                </button>
+              )}
             </div>
           </div>
+        </div>
+
+        {/* RIGHT: Live Preview */}
+        <div className="glass-card p-8">
+          <InvoicePreview
+            formData={formData}
+            calculateSubtotal={calculateSubtotal}
+            calculateTax={calculateTax}
+            calculateTotal={calculateTotal}
+          />
         </div>
       </div>
     </div>

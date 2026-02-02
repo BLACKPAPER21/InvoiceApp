@@ -30,15 +30,15 @@ export default function Layout({ children, currentPage, onNavigate }) {
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-center p-6 border-b border-white/10">
+          <div className="flex flex-col items-center justify-center p-6 border-b border-white/5 bg-navy-dark/50">
             <img
-              src="/assets/codeinkamu-logo.png"
+              src="/sidebar-logo.png"
               alt="CodeInKamu"
-              className="h-20 w-auto object-contain"
+              className="h-32 w-auto object-contain"
             />
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden absolute right-4 p-1 hover:bg-white/10 rounded"
+              className="lg:hidden absolute right-4 top-4 p-1 hover:bg-white/10 rounded"
             >
               <X className="w-5 h-5" />
             </button>
@@ -57,14 +57,17 @@ export default function Layout({ children, currentPage, onNavigate }) {
                     setSidebarOpen(false);
                   }}
                   className={cn(
-                    'w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200',
+                    'w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group relative overflow-hidden',
                     isActive
-                      ? 'bg-white/20 text-white shadow-lg'
-                      : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                      ? 'bg-accent text-white shadow-lg shadow-accent/20'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
                   )}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.name}</span>
+                  {isActive && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent" />
+                  )}
+                  <Icon className={cn("w-5 h-5 transition-colors", isActive ? "text-white" : "group-hover:text-accent")} />
+                  <span className="font-medium relative z-10">{item.name}</span>
                 </button>
               );
             })}
@@ -94,7 +97,7 @@ export default function Layout({ children, currentPage, onNavigate }) {
               <Menu className="w-6 h-6 text-gray-700" />
             </button>
             <img
-              src="/assets/codeinkamu-logo.png"
+              src="/sidebar-logo.png"
               alt="CodeInKamu"
               className="h-12 w-auto object-contain"
             />

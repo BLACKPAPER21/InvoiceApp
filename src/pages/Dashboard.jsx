@@ -12,6 +12,10 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { useRef } from 'react';
+import InvoicePreview from '../components/InvoicePreview';
 import { useInvoiceStore } from '../store/useInvoiceStore';
 import { formatCurrency, formatDate, cn } from '../utils/helpers';
 
@@ -62,234 +66,63 @@ export default function Dashboard({ onNavigate }) {
     setSelectedInvoice(invoice);
   };
 
-  // Handle download PDF - Match InvoiceEditor layout
-  const handleDownload = (invoice) => {
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Invoice ${invoice.id}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-              padding: 40px;
-              background: #f5f5f5;
-            }
-            .invoice-container {
-              max-width: 800px;
-              margin: 0 auto;
-              background: white;
-              padding: 60px;
-              border-radius: 12px;
-              box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-            .header {
-              display: flex;
-              justify-content: space-between;
-              align-items: start;
-              padding-bottom: 30px;
-              border-bottom: 2px solid #e5e7eb;
-              margin-bottom: 40px;
-            }
-            .header-left h1 {
-              font-size: 36px;
-              font-weight: 800;
-              color: #1e3a8a;
-              margin-bottom: 8px;
-            }
-            .header-left p {
-              color: #6b7280;
-              font-size: 14px;
-            }
-            .header-right {
-              text-align: right;
-            }
-            .invoice-id {
-              font-family: monospace;
-              font-size: 18px;
-              font-weight: 700;
-              color: #1e3a8a;
-              margin-bottom: 4px;
-            }
-            .date {
-              color: #6b7280;
-              font-size: 14px;
-            }
-            .bill-to {
-              margin-bottom: 30px;
-            }
-            .bill-to h3 {
-              font-size: 12px;
-              font-weight: 600;
-              color: #6b7280;
-              text-transform: uppercase;
-              margin-bottom: 12px;
-              letter-spacing: 0.5px;
-            }
-            .bill-to .client-name {
-              font-size: 18px;
-              font-weight: 600;
-              color: #111827;
-              margin-bottom: 4px;
-            }
-            .bill-to .client-email {
-              color: #6b7280;
-              font-size: 14px;
-            }
-            .due-date-box {
-              background: #fef3c7;
-              border: 1px solid #fbbf24;
-              border-left: 4px solid #f59e0b;
-              padding: 16px;
-              border-radius: 8px;
-              margin-bottom: 30px;
-            }
-            .due-date-box p {
-              color: #92400e;
-              font-weight: 500;
-              font-size: 14px;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 30px;
-            }
-            thead {
-              border-bottom: 2px solid #d1d5db;
-            }
-            th {
-              padding: 12px 8px;
-              text-align: left;
-              font-size: 12px;
-              font-weight: 600;
-              color: #374151;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-            }
-            th:nth-child(2), th:nth-child(3), th:nth-child(4) {
-              text-align: right;
-            }
-            td:nth-child(2), td:nth-child(3), td:nth-child(4) {
-              text-align: right;
-            }
-            tbody tr {
-              border-bottom: 1px solid #e5e7eb;
-            }
-            td {
-              padding: 16px 8px;
-              font-size: 14px;
-              color: #111827;
-            }
-            .total-section {
-              border-top: 2px solid #d1d5db;
-              padding-top: 20px;
-              margin-top: 20px;
-            }
-            .total-row {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-            }
-            .total-label {
-              font-size: 18px;
-              font-weight: 600;
-              color: #374151;
-            }
-            .total-amount {
-              font-size: 32px;
-              font-weight: 800;
-              color: #1e3a8a;
-            }
-            .footer {
-              text-align: center;
-              margin-top: 50px;
-              padding-top: 30px;
-              border-top: 1px solid #e5e7eb;
-              color: #6b7280;
-              font-size: 14px;
-            }
-            .footer p {
-              margin: 4px 0;
-            }
-            @media print {
-              body { background: white; padding: 0; }
-              .invoice-container {
-                box-shadow: none;
-                border-radius: 0;
-                padding: 40px;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="invoice-container">
-            <div class="header">
-              <div class="header-left">
-                <h1>INVOICE</h1>
-                <p>Creative Agency Invoice</p>
-              </div>
-              <div class="header-right">
-                <div class="invoice-id">${invoice.id}</div>
-                <div class="date">Date: ${formatDate(invoice.dateIssued)}</div>
-              </div>
-            </div>
+  // Handle download PDF
+  const handleDownload = async (invoice) => {
+    // Create a temporary hidden container
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.top = '-9999px';
+    container.style.left = '-9999px';
+    container.style.width = '800px'; // Set fixed width for consistency
+    document.body.appendChild(container);
 
-            <div class="bill-to">
-              <h3>Bill To:</h3>
-              <div class="client-name">${invoice.clientName}</div>
-              <div class="client-email">${invoice.clientEmail}</div>
-            </div>
+    // Import functionality dynamically or use global accessible logic
+    // Since we can't easily mount a React component imperatively without proper setup,
+    // we'll rely on a hidden component rendered in the JSX that we update with state.
+    // However, cleaner approach: Set a 'downloadingInvoice' state that renders the Preview in a hidden div,
+    // then triggers the download effect.
 
-            ${invoice.dueDate ? `
-              <div class="due-date-box">
-                <p>Due Date: ${formatDate(invoice.dueDate)}</p>
-              </div>
-            ` : ''}
-
-            <table>
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${invoice.items.map(item => `
-                  <tr>
-                    <td>${item.desc || '-'}</td>
-                    <td>${item.qty}</td>
-                    <td>${formatCurrency(item.price)}</td>
-                    <td style="font-weight: 600;">${formatCurrency(item.qty * item.price)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-
-            <div class="total-section">
-              <div class="total-row">
-                <div class="total-label">TOTAL</div>
-                <div class="total-amount">${formatCurrency(invoice.total)}</div>
-              </div>
-            </div>
-
-            <div class="footer">
-              <p><strong>Thank you for your business!</strong></p>
-              <p>Please make payment before the due date.</p>
-            </div>
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    setDownloadingInvoice(invoice);
   };
+
+  const [downloadingInvoice, setDownloadingInvoice] = useState(null);
+  const previewRef = useRef();
+
+  useEffect(() => {
+    if (downloadingInvoice && previewRef.current) {
+      const generatePDF = async () => {
+        try {
+          const element = previewRef.current;
+          const canvas = await html2canvas(element, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            logging: false,
+            useCORS: true
+          });
+
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+          const imgWidth = canvas.width;
+          const imgHeight = canvas.height;
+          const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+          const imgX = (pdfWidth - imgWidth * ratio) / 2;
+
+          pdf.addImage(imgData, 'PNG', imgX, 0, imgWidth * ratio, imgHeight * ratio);
+          pdf.save(`${downloadingInvoice.id}.pdf`);
+        } catch (err) {
+          console.error("PDF Generation failed", err);
+          alert("Failed to generate PDF");
+        } finally {
+          setDownloadingInvoice(null);
+        }
+      };
+
+      // Slight delay to ensure render
+      setTimeout(generatePDF, 500);
+    }
+  }, [downloadingInvoice]);
 
   // Handle delete invoice
   const handleDelete = async (invoice) => {
@@ -696,6 +529,17 @@ export default function Dashboard({ onNavigate }) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Hidden Invoice Preview for PDF Generation */}
+      {downloadingInvoice && (
+        <div style={{ position: 'absolute', top: -9999, left: -9999 }} className="hidden-preview">
+          <InvoicePreview
+            ref={previewRef}
+            formData={downloadingInvoice}
+            // We don't pass calculate functions here, InvoicePreview will use formData values (total, etc)
+          />
         </div>
       )}
 

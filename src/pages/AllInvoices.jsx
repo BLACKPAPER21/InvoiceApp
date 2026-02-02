@@ -9,6 +9,10 @@ import {
   AlertCircle,
   FileText,
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { useRef } from 'react';
+import InvoicePreview from '../components/InvoicePreview';
 import { useInvoiceStore } from '../store/useInvoiceStore';
 import { formatCurrency, formatDate, cn } from '../utils/helpers';
 
@@ -69,60 +73,49 @@ export default function AllInvoices() {
     setSelectedInvoice(invoice);
   };
 
-  // Download PDF
-  const handleDownload = (invoice) => {
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Invoice ${invoice.id}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-              padding: 40px;
-              background: #f5f5f5;
-            }
-            .invoice-container {
-              max-width: 800px;
-              margin: 0 auto;
-              background: white;
-              padding: 60px;
-              border-radius: 12px;
-              box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-            .header {
-              display: flex;
-              justify-content: space-between;
-              padding-bottom: 30px;
-              border-bottom: 2px solid #e5e7eb;
-              margin-bottom: 40px;
-            }
-            .header h1 {
-              font-size: 36px;
-              font-weight: 800;
-              color: #1e3a8a;
-            }
-            @media print {
-              body { background: white; padding: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="invoice-container">
-            <div class="header">
-              <h1>INVOICE</h1>
-              <div>${invoice.id}</div>
-            </div>
-            <p>Client: ${invoice.clientName}</p>
-            <p>Total: ${formatCurrency(invoice.total)}</p>
-          </div>
-          <script>window.onload = function() { window.print(); };</script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+  // Handle download PDF
+  const handleDownload = async (invoice) => {
+    setDownloadingInvoice(invoice);
   };
+
+  const [downloadingInvoice, setDownloadingInvoice] = useState(null);
+  const previewRef = useRef();
+
+  useEffect(() => {
+    if (downloadingInvoice && previewRef.current) {
+      const generatePDF = async () => {
+        try {
+          const element = previewRef.current;
+          const canvas = await html2canvas(element, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            logging: false,
+            useCORS: true
+          });
+
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+          const imgWidth = canvas.width;
+          const imgHeight = canvas.height;
+          const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+          const imgX = (pdfWidth - imgWidth * ratio) / 2;
+
+          pdf.addImage(imgData, 'PNG', imgX, 0, imgWidth * ratio, imgHeight * ratio);
+          pdf.save(`${downloadingInvoice.id}.pdf`);
+        } catch (err) {
+          console.error("PDF Generation failed", err);
+          alert("Failed to generate PDF");
+        } finally {
+          setDownloadingInvoice(null);
+        }
+      };
+
+      // Slight delay to ensure render
+      setTimeout(generatePDF, 500);
+    }
+  }, [downloadingInvoice]);
 
   // Delete invoice
   const handleDelete = (invoice) => {
@@ -375,6 +368,15 @@ export default function AllInvoices() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Hidden Invoice Preview for PDF Generation */}
+      {downloadingInvoice && (
+        <div style={{ position: 'absolute', top: -9999, left: -9999 }} className="hidden-preview">
+          <InvoicePreview
+            ref={previewRef}
+            formData={downloadingInvoice}
+          />
         </div>
       )}
     </div>
