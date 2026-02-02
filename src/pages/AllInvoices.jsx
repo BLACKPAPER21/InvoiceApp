@@ -61,9 +61,9 @@ export default function AllInvoices() {
   // Filter invoices
   const filteredInvoices = invoices.filter(invoice => {
     const matchesSearch =
-      invoice.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      invoice.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      invoice.clientEmail.toLowerCase().includes(searchQuery.toLowerCase());
+      (invoice.invoiceId?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (invoice.clientName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (invoice.clientEmail?.toLowerCase() || '').includes(searchQuery.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter;
 
@@ -170,7 +170,7 @@ export default function AllInvoices() {
     }
 
     try {
-      await invoiceAPI.markAsPaid(invoice._id);
+      await invoiceAPI.markAsPaid(invoice.invoiceId);
       await fetchInvoices(); // Refresh list
       alert('Invoice marked as paid and stock updated!');
     } catch (error) {
@@ -185,7 +185,7 @@ export default function AllInvoices() {
     }
 
     try {
-      await invoiceAPI.cancel(invoice._id);
+      await invoiceAPI.cancel(invoice.invoiceId);
       await fetchInvoices(); // Refresh list
       alert('Invoice cancelled and stock returned!');
     } catch (error) {
@@ -311,12 +311,12 @@ export default function AllInvoices() {
               ) : (
                 filteredInvoices.map((invoice) => (
                   <tr
-                    key={invoice.id}
+                    key={invoice.invoiceId}
                     className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                   >
                     <td className="py-4 px-4">
                       <span className="font-mono text-sm font-medium text-navy">
-                        {invoice.id}
+                        {invoice.invoiceId}
                       </span>
                     </td>
                     <td className="py-4 px-4">

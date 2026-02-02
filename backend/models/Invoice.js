@@ -27,10 +27,10 @@ export default (sequelize) => {
         defaultValue: 'pending',
       },
       signatureImage: {
-        type: DataTypes.TEXT,
+        type: DataTypes.JSON,
       },
       stampImage: {
-        type: DataTypes.TEXT,
+        type: DataTypes.JSON,
       },
       authorisedPerson: {
         type: DataTypes.STRING,

@@ -6,7 +6,9 @@ const { Invoice, Product, StockHistory } = db.models;
 export const getAllInvoices = async (req, res) => {
   try {
     const invoices = await Invoice.findAll({
-      order: [['createdAt', 'DESC']],
+      order: [['id', 'DESC']],
+      limit: 100,
+      attributes: { exclude: ['items'] }, // Exclude large JSON field for list view
     });
     res.json({
       success: true,
