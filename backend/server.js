@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import sequelize from './config/database.js';
 import invoiceRoutes from './routes/invoices.js';
 import productRoutes from './routes/products.js';
+import databaseRoutes from './routes/database.js';
 
 // Load environment variables
 dotenv.config();
@@ -32,12 +33,14 @@ app.get('/', (req, res) => {
       invoices: '/api/invoices',
       products: '/api/products',
       stats: '/api/invoices/stats',
+      database: '/api/database',
     },
   });
 });
 
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/database', databaseRoutes);
 
 // 404 handler
 app.use((req, res) => {

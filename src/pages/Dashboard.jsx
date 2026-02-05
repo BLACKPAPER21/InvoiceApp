@@ -16,6 +16,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { useRef } from 'react';
 import InvoicePreview from '../components/InvoicePreview';
+import DatabaseTools from '../components/DatabaseTools';
 import { useInvoiceStore } from '../store/useInvoiceStore';
 import { formatCurrency, formatDate, cn } from '../utils/helpers';
 
@@ -290,6 +291,9 @@ export default function Dashboard({ onNavigate }) {
           );
         })}
       </div>
+
+      {/* Database Tools */}
+      <DatabaseTools />
 
       {/* Recent Invoices Table */}
       <div className="glass-card p-6">

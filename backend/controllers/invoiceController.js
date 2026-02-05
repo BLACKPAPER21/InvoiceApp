@@ -28,7 +28,7 @@ export const getAllInvoices = async (req, res) => {
 export const getInvoiceById = async (req, res) => {
   try {
     const invoice = await Invoice.findOne({
-      where: { invoiceId: req.params.id },
+      where: { id: req.params.id },
     });
 
     if (!invoice) {
@@ -117,7 +117,7 @@ export const createInvoice = async (req, res) => {
 export const updateInvoice = async (req, res) => {
   try {
     const [updated] = await Invoice.update(req.body, {
-      where: { invoiceId: req.params.id },
+      where: { id: req.params.id },
     });
 
     if (updated === 0) {
@@ -128,7 +128,7 @@ export const updateInvoice = async (req, res) => {
     }
 
     const invoice = await Invoice.findOne({
-      where: { invoiceId: req.params.id },
+      where: { id: req.params.id },
     });
 
     res.json({
@@ -149,7 +149,7 @@ export const updateInvoice = async (req, res) => {
 export const deleteInvoice = async (req, res) => {
   try {
     const invoice = await Invoice.findOne({
-      where: { invoiceId: req.params.id },
+      where: { id: req.params.id },
     });
 
     if (!invoice) {
@@ -209,7 +209,7 @@ export const getInvoiceStats = async (req, res) => {
 export const markInvoiceAsPaid = async (req, res) => {
   try {
     const invoice = await Invoice.findOne({
-      where: { invoiceId: req.params.id },
+      where: { id: req.params.id },
     });
 
     if (!invoice) {
@@ -293,7 +293,7 @@ export const markInvoiceAsPaid = async (req, res) => {
 export const cancelInvoice = async (req, res) => {
   try {
     const invoice = await Invoice.findOne({
-      where: { invoiceId: req.params.id },
+      where: { id: req.params.id },
     });
 
     if (!invoice) {
