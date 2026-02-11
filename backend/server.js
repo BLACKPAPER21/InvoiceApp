@@ -61,28 +61,46 @@ app.use((err, req, res, next) => {
 });
 
 // Connect to MySQL and start server
+// Connect to MySQL/Postgres and start server
 const startServer = async () => {
   try {
     // Test connection and sync database
     await sequelize.authenticate();
-    console.log('✅ Connected to MySQL');
+    console.log('✅ Connected to Database');
 
     // Sync models with database (creates tables if they don't exist)
     await sequelize.sync({ alter: true });
     console.log('✅ Database tables synced');
 
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-      console.log(`📝 API Docs: http://localhost:${PORT}/api/invoices`);
-      console.log(`🔥 Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
+    // Only listen if not running in Vercel (Vercel handles the port binding)
+    if (process.env.NODE_ENV !== 'production') {
+      app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+        console.log(`📝 API Docs: http://localhost:${PORT}/api/invoices`);
+        console.log(`🔥 Environment: ${process.env.NODE_ENV || 'development'}`);
+      });
+    }
   } catch (error) {
     console.error('❌ Database connection error:', error.message);
-    process.exit(1);
+    // don't exit process in Vercel, might crash the function
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
   }
 };
 
-startServer();
+// Start server if not in Vercel (or explicitly called)
+if (process.env.NODE_ENV !== 'production') {
+    startServer();
+} else {
+    // In production (Vercel), we might still want to ensure DB connection
+    // But Vercel functions are stateless/ephemeral.
+    // Usually we connect lazily or at top level.
+    // We'll trust Sequelize connection pool.
+    sequelize.authenticate().then(() => console.log('✅ DB Connected (Vercel)'));
+}
+
+export default app;
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {

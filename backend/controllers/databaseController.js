@@ -102,6 +102,16 @@ const sanitizeInvoiceInsertLine = (line) => {
  */
 export const exportDatabase = async (req, res) => {
   try {
+    // Check if we are using MySQL
+    const dialect = process.env.DB_DIALECT || (process.env.DATABASE_URL ? 'postgres' : 'mysql');
+
+    if (dialect !== 'mysql') {
+      return res.status(501).json({
+        success: false,
+        message: 'Database export is currently only supported for MySQL. PostgreSQL support coming soon.',
+      });
+    }
+
     const stripImages = req.query.stripImages === '1' || req.query.stripImages === 'true';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
     const filename = `invoiceapp-backup-${timestamp}.sql`;
@@ -216,6 +226,17 @@ export const exportDatabase = async (req, res) => {
  */
 export const getMySQLConfig = async (req, res) => {
   try {
+     // Check if we are using MySQL
+    const dialect = process.env.DB_DIALECT || (process.env.DATABASE_URL ? 'postgres' : 'mysql');
+
+    if (dialect !== 'mysql') {
+      return res.status(200).json({
+        success: true,
+        message: 'Configuration checks are only relevant for MySQL.',
+        recommendations: {}
+      });
+    }
+
     res.json({
       success: true,
       message: 'MySQL Configuration Recommendations',

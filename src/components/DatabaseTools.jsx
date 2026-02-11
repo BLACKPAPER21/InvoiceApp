@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Database, Download, Info, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const DatabaseTools = () => {
   const [isExporting, setIsExporting] = useState(false);
-  const [exportStatus, setExportStatus] = useState(null); // { type: 'success' | 'error', mode?: 'full' | 'lite' }
+  const [exportStatus, setExportStatus] = useState(null); // { type: 'success' | 'error', mode?: 'full' | 'lite', message?: string }
   const [showInfo, setShowInfo] = useState(false);
 
   const handleExportDatabase = async (stripImages = false) => {
@@ -22,9 +22,18 @@ const DatabaseTools = () => {
         ? `${API_URL}/database/export?stripImages=1`
         : `${API_URL}/database/export`;
 
-      // Create download link
+      // Fetch first to check for errors (like 501 Not Implemented)
+      const response = await fetch(exportUrl);
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Export failed');
+      }
+
+      // If ok, proceed with download
+      const blob = await response.blob();
       const link = document.createElement('a');
-      link.href = exportUrl;
+      link.href = window.URL.createObjectURL(blob);
       link.download = filename;
       document.body.appendChild(link);
       link.click();
@@ -36,7 +45,7 @@ const DatabaseTools = () => {
       setTimeout(() => setExportStatus(null), 5000);
     } catch (error) {
       console.error('Export error:', error);
-      setExportStatus({ type: 'error' });
+      setExportStatus({ type: 'error', message: error.message });
 
       // Clear error message after 5 seconds
       setTimeout(() => setExportStatus(null), 5000);
@@ -98,7 +107,7 @@ const DatabaseTools = () => {
         <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2">
           <AlertCircle className="w-5 h-5 text-rose-600" />
           <span className="text-sm text-rose-800 font-medium">
-            ❌ Export failed. Make sure backend server is running.
+            ❌ {exportStatus.message || 'Export failed. Make sure backend server is running.'}
           </span>
         </div>
       )}
