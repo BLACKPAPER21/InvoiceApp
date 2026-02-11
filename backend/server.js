@@ -42,6 +42,33 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/database', databaseRoutes);
 
+// Health/Diagnostic endpoint for debugging deployment issues
+app.get('/api/health', async (req, res) => {
+  const envCheck = {
+    DATABASE_URL: !!process.env.DATABASE_URL,
+    POSTGRES_URL: !!process.env.POSTGRES_URL,
+    POSTGRES_PRISMA_URL: !!process.env.POSTGRES_PRISMA_URL,
+    NODE_ENV: process.env.NODE_ENV || 'not set',
+    VERCEL: !!process.env.VERCEL,
+  };
+
+  let dbStatus = 'not tested';
+  try {
+    await sequelize.authenticate();
+    dbStatus = 'connected';
+  } catch (err) {
+    dbStatus = `error: ${err.message}`;
+  }
+
+  res.json({
+    success: true,
+    message: 'Health Check',
+    environment: envCheck,
+    database: dbStatus,
+    dialect: sequelize.getDialect(),
+  });
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
