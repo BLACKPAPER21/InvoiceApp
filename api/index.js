@@ -3,15 +3,22 @@ import 'pg-hstore';       // Same for pg-hstore
 import app from '../backend/server.js';
 import sequelize from '../backend/config/database.js';
 
-export default async function handler(req, res) {
-  try {
-    // Ensure database is connected and synced (essential for serverless cold starts)
-    await sequelize.authenticate();
-    await sequelize.sync({ alter: true });
-  } catch (error) {
-    console.error('Database Connection/Sync Error:', error.message);
-    // Don't block - let the request pass through so health endpoint still works
-  }
+// Cache the DB sync promise so it only runs ONCE per cold start, not every request
+let dbReady = null;
 
+function ensureDbReady() {
+  if (!dbReady) {
+    dbReady = sequelize.authenticate()
+      .then(() => sequelize.sync()) // sync() without alter — tables already exist
+      .catch((error) => {
+        console.error('Database Connection/Sync Error:', error.message);
+        dbReady = null; // Reset so next request retries
+      });
+  }
+  return dbReady;
+}
+
+export default async function handler(req, res) {
+  await ensureDbReady();
   return app(req, res);
 }

@@ -119,13 +119,8 @@ const startServer = async () => {
 // Start server if not in Vercel (or explicitly called)
 if (process.env.NODE_ENV !== 'production') {
     startServer();
-} else {
-    // In production (Vercel), we might still want to ensure DB connection
-    // But Vercel functions are stateless/ephemeral.
-    // Usually we connect lazily or at top level.
-    // We'll trust Sequelize connection pool.
-    sequelize.authenticate().then(() => console.log('✅ DB Connected (Vercel)'));
 }
+// In production (Vercel), api/index.js handles DB connection
 
 export default app;
 
