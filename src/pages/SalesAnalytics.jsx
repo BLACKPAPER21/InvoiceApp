@@ -26,7 +26,7 @@ import {
 import axios from 'axios';
 import jsPDF from 'jspdf';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:5000/api');
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1'];
 

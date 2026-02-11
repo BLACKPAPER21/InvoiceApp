@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Database, Download, Info, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:5000/api');
 
 const DatabaseTools = () => {
   const [isExporting, setIsExporting] = useState(false);
