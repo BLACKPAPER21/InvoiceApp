@@ -9,18 +9,8 @@ export default async function handler(req, res) {
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
   } catch (error) {
-    console.error('Database Connection/Sync Error:', error);
-    // Set CORS headers so the frontend can read the error
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    return res.status(500).json({
-      success: false,
-      message: 'Database Connection/Sync Error',
-      error: error.message,
-      stack: error.stack
-    });
+    console.error('Database Connection/Sync Error:', error.message);
+    // Don't block - let the request pass through so health endpoint still works
   }
 
   return app(req, res);
