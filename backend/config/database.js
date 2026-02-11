@@ -5,7 +5,8 @@ import initializeModels from '../models/index.js';
 dotenv.config();
 
 // Check for DATABASE_URL (standard for Vercel/Neon/Supabase)
-const databaseUrl = process.env.DATABASE_URL;
+// Neon via Vercel Storage uses POSTGRES_URL, so check both
+const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
 
 let sequelize;
 
