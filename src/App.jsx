@@ -26,6 +26,8 @@ function App() {
         return <AllInvoices onNavigate={handleNavigate} />;
       case 'create':
         return <InvoiceEditor onNavigate={handleNavigate} />;
+      case 'edit':
+        return <InvoiceEditor invoiceId={selectedId} onNavigate={handleNavigate} />;
       case 'inventory':
         return <ProductsList onNavigate={handleNavigate} />;
       case 'inventory-dashboard':

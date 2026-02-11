@@ -4,6 +4,7 @@ import {
   Filter,
   Eye,
   Download,
+  Edit,
   Trash2,
   X,
   AlertCircle,
@@ -395,6 +396,34 @@ export default function AllInvoices() {
             <p className="text-gray-600">Invoice ID: <span className="font-mono font-bold">{selectedInvoice.invoiceId}</span></p>
             <p className="text-gray-600">Client: {selectedInvoice.clientName}</p>
             <p className="text-gray-600">Total: <span className="font-bold text-navy">{formatCurrency(selectedInvoice.total)}</span></p>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  const invoiceIdToEdit = selectedInvoice.id;
+                  setSelectedInvoice(null);
+                  onNavigate('edit', invoiceIdToEdit);
+                }}
+                className="btn-secondary flex-1"
+              >
+                <Edit className="w-4 h-4 inline mr-2" />
+                Edit
+              </button>
+              <button
+                onClick={() => handleDownload(selectedInvoice)}
+                className="btn-primary flex-1"
+              >
+                <Download className="w-4 h-4 inline mr-2" />
+                Download PDF
+              </button>
+              <button
+                onClick={() => setSelectedInvoice(null)}
+                className="btn-secondary flex-1"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Eye,
   Download,
+  Edit,
   MoreVertical,
   Plus,
   Loader2,
@@ -515,6 +516,17 @@ export default function Dashboard({ onNavigate }) {
               </div>
 
               <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    const invoiceIdToEdit = selectedInvoice.id;
+                    setSelectedInvoice(null);
+                    onNavigate('edit', invoiceIdToEdit);
+                  }}
+                  className="btn-secondary flex-1"
+                >
+                  <Edit className="w-4 h-4 inline mr-2" />
+                  Edit
+                </button>
                 <button
                   onClick={() => handleDownload(selectedInvoice)}
                   className="btn-primary flex-1"

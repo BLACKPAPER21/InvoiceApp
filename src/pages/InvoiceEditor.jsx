@@ -7,9 +7,10 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import InvoicePreview from '../components/InvoicePreview';
 
-export default function InvoiceEditor({ onNavigate }) {
-  const addInvoice = useInvoiceStore((state) => state.addInvoice);
+export default function InvoiceEditor({ invoiceId, onNavigate }) {
+  const { addInvoice, updateInvoice, invoices } = useInvoiceStore();
   const { products, fetchProducts } = useProductStore();
+  const isEditMode = !!invoiceId;
 
   const [showProductSelector, setShowProductSelector] = useState(null);
   const [productSearch, setProductSearch] = useState('');
@@ -17,6 +18,35 @@ export default function InvoiceEditor({ onNavigate }) {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  // Load existing invoice data in edit mode
+  useEffect(() => {
+    if (isEditMode && invoiceId) {
+      const invoice = invoices.find(inv => inv.id === invoiceId);
+      if (invoice) {
+        setFormData({
+          id: invoice.invoiceId,
+          clientName: invoice.clientName,
+          clientEmail: invoice.clientEmail,
+          dateIssued: invoice.dateIssued,
+          dueDate: invoice.dueDate,
+          status: invoice.status,
+          taxRate: invoice.taxRate || 0,
+          items: invoice.items.map(item => ({
+            productId: item.productId || null,
+            sku: item.sku || '',
+            desc: item.desc,
+            qty: item.qty,
+            price: item.price,
+            stockAvailable: null,
+          })),
+          signatureImage: invoice.signatureImage,
+          stampImage: invoice.stampImage,
+          authorisedPerson: invoice.authorisedPerson || 'Authorised sign',
+        });
+      }
+    }
+  }, [isEditMode, invoiceId, invoices]);
 
   const [formData, setFormData] = useState({
     id: generateInvoiceId(),
@@ -111,7 +141,7 @@ export default function InvoiceEditor({ onNavigate }) {
         stockDeducted: false,
       }));
 
-      const invoice = {
+      const invoiceData = {
         clientName: formData.clientName,
         clientEmail: formData.clientEmail,
         dateIssued: formData.dateIssued,
@@ -125,12 +155,17 @@ export default function InvoiceEditor({ onNavigate }) {
         taxRate: formData.taxRate,
       };
 
-      await addInvoice(invoice);
-      alert('Invoice saved successfully!');
+      if (isEditMode) {
+        await updateInvoice(invoiceId, invoiceData);
+        alert('Invoice updated successfully!');
+      } else {
+        await addInvoice(invoiceData);
+        alert('Invoice created successfully!');
+      }
       onNavigate('dashboard');
     } catch (error) {
-      console.error('Error creating invoice:', error);
-      alert('Error creating invoice: ' + (error.response?.data?.message || error.message));
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} invoice:`, error);
+      alert(`Error ${isEditMode ? 'updating' : 'creating'} invoice: ` + (error.response?.data?.message || error.message));
     }
   };
 
@@ -170,16 +205,16 @@ export default function InvoiceEditor({ onNavigate }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-display font-bold text-navy">
-            Create New Invoice
+            {isEditMode ? 'Edit Invoice' : 'Create New Invoice'}
           </h1>
           <p className="text-gray-600 mt-2">
-            Fill in the details and preview your invoice in real-time
+            {isEditMode ? 'Update invoice details and preview changes' : 'Fill in the details and preview your invoice in real-time'}
           </p>
         </div>
         <div className="flex gap-3">
           <button onClick={handleSave} className="btn-primary">
             <Save className="w-4 h-4 inline mr-2" />
-            Save Invoice
+            {isEditMode ? 'Update Invoice' : 'Save Invoice'}
           </button>
           <button onClick={handleDownloadPDF} className="btn-secondary">
             <Download className="w-4 h-4 inline mr-2" />
