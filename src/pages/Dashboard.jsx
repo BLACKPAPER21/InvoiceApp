@@ -369,7 +369,7 @@ export default function Dashboard({ onNavigate }) {
                 >
                   <td className="py-4 px-4">
                     <span className="font-mono text-sm font-medium text-navy">
-                      {invoice.id}
+                      {invoice.invoiceId}
                     </span>
                   </td>
                   <td className="py-4 px-4">
@@ -447,7 +447,7 @@ export default function Dashboard({ onNavigate }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Invoice ID</p>
-                  <p className="font-mono font-bold text-navy">{selectedInvoice.id}</p>
+                  <p className="font-mono font-bold text-navy">{selectedInvoice.invoiceId}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-2">Status</p>
@@ -560,7 +560,7 @@ export default function Dashboard({ onNavigate }) {
             </div>
             <p className="text-gray-700 mb-6">
               Are you sure you want to delete invoice{' '}
-              <span className="font-mono font-bold">{selectedInvoice?.id}</span>?
+              <span className="font-mono font-bold">{selectedInvoice?.invoiceId}</span>?
             </p>
             <div className="flex gap-3">
               <button

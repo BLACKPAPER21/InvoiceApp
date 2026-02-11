@@ -392,7 +392,7 @@ export default function AllInvoices() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-gray-600">Invoice ID: <span className="font-mono font-bold">{selectedInvoice.id}</span></p>
+            <p className="text-gray-600">Invoice ID: <span className="font-mono font-bold">{selectedInvoice.invoiceId}</span></p>
             <p className="text-gray-600">Client: {selectedInvoice.clientName}</p>
             <p className="text-gray-600">Total: <span className="font-bold text-navy">{formatCurrency(selectedInvoice.total)}</span></p>
           </div>
@@ -404,7 +404,7 @@ export default function AllInvoices() {
           <div className="glass-card max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-navy mb-4">Delete Invoice</h3>
             <p className="text-gray-700 mb-6">
-              Are you sure you want to delete invoice <span className="font-mono font-bold">{selectedInvoice?.id}</span>?
+              Are you sure you want to delete invoice <span className="font-mono font-bold">{selectedInvoice?.invoiceId}</span>?
             </p>
             <div className="flex gap-3">
               <button onClick={() => { setShowDeleteModal(false); setSelectedInvoice(null); }} className="btn-secondary flex-1">
